@@ -23,11 +23,11 @@ function render(elapsed, deltaTime) {
 }
 
 function loop(timestamp) {
-    const elapsed = 0.5 * (timestamp - startTime);
+    const elapsed = (timestamp - startTime);
     const deltaTime = elapsed - lastTime;
 
     // Updating the robot's position data;
-    robot.update(elapsed, deltaTime);
+    robot.update(Util.seconds(elapsed), Util.seconds(deltaTime));
     render(elapsed, deltaTime);
 
     lastTime = elapsed;

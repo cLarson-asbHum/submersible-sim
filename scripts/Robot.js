@@ -54,24 +54,6 @@ export default class Robot extends PhysicsEntity {
         this.#sensor.setDistance(this.#key, DistanceUnit.INCH, this.y / Math.cos(this.theta) + this.heightSensorOffset);
     }
 
-    computeRobotTheta() {
-        // Vector Componentns
-        const {x: Px, y: Py} = this.position.position; 
-        const {x: vx, y: vy} = this.position.position.add(this.hookingOffset); 
-        const {rotCx: Cx, rotCy: Cy} = this; 
-
-        // Parts of the formula
-        const a =  (vx - Cx) * (vy - Py) + (vy - Cy) * (vx - Px);
-        const b = -(vx - Cx) * (vx - Px) + (vy - Cy) * (vy - Py);
-        const u = -(vx - Cx) * Py        - (vy - Cy) * Px;
-        const sqrSum = a * a + b * b;
-        const sqrSumRecip = 1 / sqrSum;
-        return Math.asin(
-            u * b * sqrSumRecip 
-            + Math.abs(a) * sqrSumRecip * Math.sqrt(sqrSum - u * u)
-        );
-    }
-
     getCenterOfMass() {
         const rotationCenter = new PhysicsEntity.Vector(this.rotCx, this.rotCy);
         return this.centerOfMassOffset
@@ -97,34 +79,41 @@ export default class Robot extends PhysicsEntity {
             .add(rotationCenter)
     }
 
-    update(elapsed, deltaTime) {
-        // Applying gravity
-        this.velocity.position = this.velocity.position.add(new PhysicsEntity
-            .Vector(0, PhysicsEntity.g)
-            .scale(Util.seconds(deltaTime))
-        );
-        // this.checkCollisionY();
-        this.velocity.position = PhysicsEntity.restrictVelTo(
-            this.getCenterOfMass(), // Velocity Vector tail
-            this.velocity.position, // Downward vel
-            new PhysicsEntity.Vector(this.rotCx, this.rotCy) // Center of rotation
-        );
-        // this.velocity.setTheta(PhysicsEntity.rotationalVelFrom(
-        //     this.getCenterOfMass(), // Velocity Vector Tail
-        //     this.velocity.position, // Velocity,
-        //     new PhysicsEntity.Vector(this.rotCx, this.rotCy) // Center of Rotation
-        // ));
-        this.setX(this.getX() + this.velocity.getX() * Util.seconds(deltaTime));
-        this.setY(this.getY() + this.velocity.getY() * Util.seconds(deltaTime));
-        this.setTheta(this.computeRobotTheta());
+    update(elapsed, deltaTime /* Seconds */) {
+        const rotationalCenter = new PhysicsEntity.Vector(this.rotCx, this.rotCy);
 
-        // Theta is different cuz' of the hand
-        // this.setTheta(new PhysicsEntity
-        //     .Vector(this.rotCx, this.rotCy)
-        //     .subtract(this.getTopLeft())
-        //     .arctan()
-        //     - Util.rad(45)
-        // );
+        // Updating theta
+        const deltaTheta = this.getAngularVel() * deltaTime; 
+        this.setTheta(this.getTheta() + deltaTheta);
+
+        // Setting the x and y to reflect the rotation of the robot
+        this.setLinearPos(this.getLinearPos()
+            .subtract(rotationalCenter)
+            .transform(new DOMMatrix([
+                Math.cos(-deltaTheta), Math.sin(-deltaTheta),
+                -Math.sin(-deltaTheta), Math.cos(-deltaTheta),
+                0, 0 
+            ]))
+            .add(rotationalCenter)
+        );
+
+        // Adding gravity into the stuffs
+        this.velocity.setY(this.velocity.getY() + deltaTime * PhysicsEntity.g);
+
+        // Changing the theta velocity based on the new gravity-affected linear velocity
+        this.velocity.setTheta(-PhysicsEntity.rotationalVelFrom(
+            this.getCenterOfMass(), 
+            this.getLinearVel(),
+            rotationalCenter
+        ));
+
+        // Updating the linear velocity to accurately model the swinging motion
+        this.setLinearVel(PhysicsEntity.linearVelFrom(
+            this.getCenterOfMass(),
+            -this.getAngularVel(),
+            rotationalCenter
+        ));
+
 
         // Settings the postions
         this.x = this.getX();

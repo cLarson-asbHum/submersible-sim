@@ -103,7 +103,7 @@ export default class PhysicsEntity {
      * Returns rotational velocity based on a velocity vector and a pivot
      */
     static rotationalVelFrom(origin, vel, pivot) {
-        const delta = pivot.subtract(origin);
+        const delta = origin.subtract(pivot);
         const distFromPivotSqr = delta.sqrNorm();
 
         if(Math.abs(distFromPivotSqr) <= 1e-10) {
@@ -111,7 +111,28 @@ export default class PhysicsEntity {
             return 0;
         } 
 
+        // + if couner clockwise; - if clockwise
         return (delta.x * vel.y - delta.y * vel.x) / (2 * Math.PI * distFromPivotSqr);
+    }
+
+    static linearVelFrom(origin, angVel /* number */, pivot) {
+        const delta = origin.subtract(pivot);
+        const distFromPivotSqr = delta.sqrNorm();
+
+        if(Math.abs(distFromPivotSqr) <= 1e-10) {
+            // The distance from the center is (pretty much) very, return 0.
+            return new PhysicsEntity.Vector(0, 0);
+        } 
+
+        const magnitude = angVel * (2 * Math.PI * Math.sqrt(distFromPivotSqr));
+        return delta
+            // Get as a unit vector
+            .scale(1 / Math.sqrt(distFromPivotSqr))
+            // Rotating in the direction of the angular vel
+            .transform(new DOMMatrix([0, 1, -1, 0, 0, 0]))
+            // Scaling match the magnitude of the angular vel (direction is also factored in)
+            .scale(magnitude)
+            ;
     }
 
     static deltaVel(accel, dt) {
@@ -126,18 +147,9 @@ export default class PhysicsEntity {
         return 0.5 * accel * dt * dt + dt * lastVelocity;
     }
 
-    static collisionY(vel, origin, y) {
-        if(origin.getY() + vel.getY() <= y) {
-            return vel.scale(-1);
-        } 
-
-        return vel;
-    }
-
 
     position = new PhysicsEntity.Pose(0, 0, 0);
     velocity = new PhysicsEntity.Pose(0, 0, 0);
-    centerOfMass = new PhysicsEntity.Vector(0, 0);
 
     constructor(pos) {
         if(pos instanceof PhysicsEntity.Pose) {
@@ -189,12 +201,49 @@ export default class PhysicsEntity {
         this.velocity = new PhysicsEntity.Pose(0, 0, 0);
     }
 
-    collisionY(y) {
-        this.velocity = this.velcotity.add(PhysicsEntity.collisionY(y));
+    collisionY(dt, y) {
+        if(this.getLinearVel().scale(dt).y + this.y <= y) {
+            this.setLinearVel(new PhysicsEntity.Vector(0,0 ));
+            this.setAngularVel(0);
+        }
     }
 
     // @Abstract
     update(elapsed, deltaTime) {
         throw ReferenceError("PhysicsEntity.prototype.update is an abstract method an must be overriden in an implenting subclass.");
+    }
+
+    getLinearPos() {
+        return this.position.position;
+    }
+
+    
+    setLinearPos(newLinear) {
+        return this.position.position = newLinear;
+    }
+
+    getLinearVel() {
+        return this.velocity.position;
+    }
+
+    
+    setLinearVel(newLinear) {
+        return this.velocity.position = newLinear;
+    }
+
+    getAngularPos() {
+        return this.position.theta;
+    }
+
+    setAngularPos(newAngular) {
+        return this.position.theta = newAngular;
+    }
+
+    getAngularVel() {
+        return this.velocity.theta;
+    }
+
+    setAngularVel(newAngular) {
+        return this.velocity.theta = newAngular;
     }
 }
