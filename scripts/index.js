@@ -86,6 +86,9 @@ function resizeInit(timestamp) {
     render(timestamp - startTime, timestamp - lastTime);
 }
 
+
+DistanceUnit.init();
+
 window.requestAnimationFrame(t => {
     resizeInit(t);
     loop(t);

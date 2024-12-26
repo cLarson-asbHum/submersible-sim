@@ -1,33 +1,20 @@
 import Util from "./Util.js"
+import VisualMatrix from "./VisualMatrix.js";
 
 export default class Graph {
     static STEP_X = 9;
     static STEP_Y = 9;
     static pixelsPerIn = 10;
 
-    static #transformation = new DOMMatrixReadOnly();
+    static #transformation = new VisualMatrix();
     static minY = 0;
     static maxY = 0;
     static maxX = 0;
 
-    static #VisualMatrix = class extends DOMMatrixReadOnly {
-        constructor(init) {
-            if(init?.length == 4) {
-                super([init[0], init[2], init[1], init[3], 0, 0]);
-            } else if(init?.length == 6) {
-                super([init[0], init[2], init[1], init[3], init[4], init[5]]);
-            } else if(init?.length == 9) {
-                super([init[0], init[3], init[1], init[4], init[2], init[5]]);
-            } else {
-                throw new TypeError(`Graph.#VisualMatrix init expect 4, 6, or 9 elements; got ${init?.length}`);
-            } 
-        }
-    }
-
     static transform(ctx) {
         const canvas = ctx.canvas;
 
-        ctx.setTransform(this.#transformation = new this.#VisualMatrix([
+        ctx.setTransform(this.#transformation = new VisualMatrix([
             this.pixelsPerIn,     0,                    200,
             0,                   -this.pixelsPerIn,     canvas.height - 100,
             0,                    0,                    1,
@@ -67,7 +54,7 @@ export default class Graph {
 
         // Drawing the x labels
         if(xStep > 0) {
-            ctx.setTransform(this.#transformation.multiply(new this.#VisualMatrix([
+            ctx.setTransform(this.#transformation.multiply(new VisualMatrix([
                 1,  0, 0,
                 0, -1, -1,
                 0,  0, 1,
@@ -87,7 +74,7 @@ export default class Graph {
 
         // Drawing the y labels
         if(yStep > 0) {
-            ctx.setTransform(this.#transformation.multiply(new this.#VisualMatrix([
+            ctx.setTransform(this.#transformation.multiply(new VisualMatrix([
                 1,  0, 0,
                 0, -1, -1,
                 0,  0, 1,

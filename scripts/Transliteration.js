@@ -62,5 +62,3 @@ export class DistanceSensor {
         this.#distance = DistanceUnit.INCH.convertFrom(unit, distance);
     }
 }
-
-DistanceUnit.init();

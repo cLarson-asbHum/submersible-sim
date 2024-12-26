@@ -1,88 +1,9 @@
 import Util from "./Util.js";
+import Vector from "./Vector.js";
+import Pose from "./Pose.js";
 
 export default class PhysicsEntity {
     static g = -386.08858267717; // inches/sec^2
-    
-    static Vector = class {
-        x;
-        y;
-        constructor(x, y) {
-            Object.assign(this, { x, y });
-        }
-
-        subtract(vec) {
-            return new PhysicsEntity.Vector(this.x - vec.x, this.y - vec.y);
-        }
-
-        add(vec) {
-            return new PhysicsEntity.Vector(this.x + vec.x, this.y + vec.y);
-        }
-
-        norm() {
-            return Math.hypot(this.x, this.y);
-        }
-
-        sqrNorm() {
-            return this.x * this.x + this.y * this.y;
-        }
-
-        arctan() {
-            return Math.atan2(this.y, this.x);
-        }
-
-        dot(vec) {
-            return this.x * vec.x + this.y * vec.y;
-        }
-
-        transform(matrix) {
-            return new PhysicsEntity.Vector(
-                matrix.a * this.x + matrix.c * this.y + matrix.e,
-                matrix.b * this.x + matrix.d * this.y + matrix.f 
-            ); 
-        }
-        
-        scale(scalar) {
-            return new PhysicsEntity.Vector(scalar * this.x, scalar * this.y);
-        }
-
-        toString() {
-            return `Vector<${this.x}, ${this.y}>`;
-        }
-    }
-
-    static Pose = class {
-        position
-        theta;
-
-        constructor(x, y, theta) {
-            this.position = new PhysicsEntity.Vector(x, y);
-            this.theta = theta;
-        }
-
-        getX() {
-            return this.position.x;
-        }
-        
-        getY() {
-            return this.position.y;
-        }
-
-        getTheta() {
-            return this.theta;
-        }
-
-        setX(newX) {
-            this.position.x = newX;
-        }
-        
-        setY(newY) {
-            this.position.y = newY;
-        }
-
-        setTheta(theta) {
-            return this.theta = theta;
-        }
-    }
 
     static restrictVelTo(origin, vel, pivot) {
         const delta = origin.subtract(pivot);
@@ -95,8 +16,7 @@ export default class PhysicsEntity {
 
         const mediate = (delta.y * vel.x - delta.x * vel.y) / distFromPivotSqr;
 
-        return new PhysicsEntity
-            .Vector(delta.y * mediate, -delta.x * mediate)
+        return new Vector(delta.y * mediate, -delta.x * mediate)
     }
 
     /**
@@ -121,18 +41,13 @@ export default class PhysicsEntity {
 
         if(Math.abs(distFromPivotSqr) <= 1e-10) {
             // The distance from the center is (pretty much) very, return 0.
-            return new PhysicsEntity.Vector(0, 0);
+            return new Vector(0, 0);
         } 
 
         const magnitude = angVel * (2 * Math.PI * Math.sqrt(distFromPivotSqr));
         return delta
-            // Get as a unit vector
-            .scale(1 / Math.sqrt(distFromPivotSqr))
-            // Rotating in the direction of the angular vel
-            .transform(new DOMMatrix([0, 1, -1, 0, 0, 0]))
-            // Scaling match the magnitude of the angular vel (direction is also factored in)
-            .scale(magnitude)
-            ;
+            .scale(magnitude / Math.sqrt(distFromPivotSqr))
+            .transform(new DOMMatrix([0, 1, -1, 0, 0, 0]));
     }
 
     static deltaVel(accel, dt) {
@@ -148,11 +63,11 @@ export default class PhysicsEntity {
     }
 
 
-    position = new PhysicsEntity.Pose(0, 0, 0);
-    velocity = new PhysicsEntity.Pose(0, 0, 0);
+    position = new Pose(0, 0, 0);
+    velocity = new Pose(0, 0, 0);
 
     constructor(pos) {
-        if(pos instanceof PhysicsEntity.Pose) {
+        if(pos instanceof Pose) {
             this.position = pos;
         }
     }
@@ -198,12 +113,12 @@ export default class PhysicsEntity {
     }
 
     stop() {
-        this.velocity = new PhysicsEntity.Pose(0, 0, 0);
+        this.velocity = new Pose(0, 0, 0);
     }
 
     collisionY(dt, y) {
         if(this.getLinearVel().scale(dt).y + this.y <= y) {
-            this.setLinearVel(new PhysicsEntity.Vector(0,0 ));
+            this.setLinearVel(new Vector(0,0 ));
             this.setAngularVel(0);
         }
     }

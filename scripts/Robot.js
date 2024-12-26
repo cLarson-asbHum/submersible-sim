@@ -1,10 +1,14 @@
 import Util from "./Util.js";
+import VisualMatrix from "./VisualMatrix.js";
+import Vector from "./Vector.js";
 import PhysicsEntity from "./PhysicsEntity.js";
 import Graph from "./Graph.js";
 import { DistanceSensor, DistanceUnit } from "./Transliteration.js";
+import Pose from "./Pose.js";
 
 export default class Robot extends PhysicsEntity {
     heightSensorOffset = -3;
+    barrierHeight = 2;
 
     OFFSET_X = 4;
     OFFSET_Y = 1;
@@ -13,26 +17,25 @@ export default class Robot extends PhysicsEntity {
     rotCy = 18;
 
     theta = Util.rad(0);     // Radians clockwise
-    // theta = Util.rad(1);     // Radians clockwise
     width = 17;
     height = 10;
     unrotX = 0.5 + this.OFFSET_X + this.width / 2;
-    unrotY = 0 + this.OFFSET_Y + this.height / 2;
+    unrotY = 2 + this.OFFSET_Y + this.height / 2;
     x = Util.rotX(this.unrotX, this.unrotY, -this.theta, this.rotCx, this.rotCy);
     y = Util.rotY(this.unrotX, this.unrotY, -this.theta, this.rotCx, this.rotCy);
 
-    unrotatedTopLeft = new PhysicsEntity.Vector(
+    unrotatedTopLeft = new Vector(
         this.unrotX - this.OFFSET_X - this.width / 2,
         this.unrotY - this.OFFSET_Y - this.height / 2
     );
-    centerOfMassOffset = new PhysicsEntity.Vector(-this.OFFSET_X / 2, -this.OFFSET_Y / 2);
-    // centerOfMassOffset = new PhysicsEntity.Vector(0, 0);
-    // centerOfMassOffset = new PhysicsEntity.Vector(-this.OFFSET_X - this.width / 2, 0);
-    hookingOffset = new PhysicsEntity.Vector(-0.5 - this.OFFSET_X - this.width / 2, 0); // Distance out the y-axis is when the robot is vertical, on the ground
+    centerOfMassOffset = new Vector(-this.OFFSET_X, -this.OFFSET_Y);
+    // centerOfMassOffset = new Vector(0, 0);
+    // centerOfMassOffset = new Vector(-this.OFFSET_X - this.width / 2, 0);
+    hookingOffset = new Vector(-0.5 - this.OFFSET_X - this.width / 2, 0); // Distance out the y-axis is when the robot is vertical, on the ground
 
     hookRadius = 2;
-    // armTheta = Util.rad(Util.rand(90, 180));  // Radians clockwise
-    armTheta = 0;  // Radians clockwise
+    armTheta = Util.rad(Util.rand(0, 90));  // Radians clockwise
+    // armTheta = 0;  // Radians clockwise
     initialArmLength = this.OFFSET_X + this.width / 2 - this.hookRadius - 0.5;
     armLength = this.initialArmLength; // Units left
 
@@ -41,7 +44,7 @@ export default class Robot extends PhysicsEntity {
 
     constructor() {
         super(null);
-        this.velocity.position = new PhysicsEntity.Vector(0, -10);
+        this.velocity.position = new Vector(0, -10);
         this.position.setX(this.x);
         this.position.setY(this.y);
         this.position.setTheta(this.theta);
@@ -49,50 +52,207 @@ export default class Robot extends PhysicsEntity {
         this.velocity.position = PhysicsEntity.restrictVelTo(
             this.getCenterOfMass(), // Velocity Vector tail
             this.velocity.position, // Downward vel
-            new PhysicsEntity.Vector(this.rotCx, this.rotCy) // Center of rotation
+            new Vector(this.rotCx, this.rotCy) // Center of rotation
         );
         this.#sensor.setDistance(this.#key, DistanceUnit.INCH, this.y / Math.cos(this.theta) + this.heightSensorOffset);
     }
 
+    getBoundingBox() {
+        const boxX = this.x - this.OFFSET_X;
+        const boxY = this.y - this.OFFSET_Y;
+        const rotation = new VisualMatrix(
+            Math.cos(-this.theta), -Math.sin(-this.theta),
+            Math.sin(-this.theta),  Math.cos(-this.theta),
+
+            // Translation stuffs
+            -this.x * Math.cos(-this.theta) + this.y * Math.sin(-this.theta) + this.x,
+            -this.x * Math.sin(-this.theta) - this.y * Math.cos(-this.theta) + this.y
+        );
+        return [
+            (new Vector(boxX - this.width / 2, boxY - this.height / 2)).transform(rotation),
+            (new Vector(boxX + this.width / 2, boxY - this.height / 2)).transform(rotation),
+            (new Vector(boxX - this.width / 2, boxY + this.height / 2)).transform(rotation),
+            (new Vector(boxX + this.width / 2, boxY + this.height / 2)).transform(rotation)
+        ];
+    }
+
+    willCollideXAxis(poseVel) {
+        const rotationalCenter = new Vector(this.rotCx, this.rotCy);
+        const futureBox = this
+            .getBoundingBox()
+            .map(v => v
+                .add(poseVel.position)
+                .subtract(rotationalCenter)
+                .transform(new VisualMatrix(
+                    Math.cos(-poseVel.theta), -Math.sin(-poseVel.theta),
+                    Math.sin(-poseVel.theta),  Math.cos(-poseVel.theta)
+                ))
+                .add(rotationalCenter)
+            );
+        return futureBox.some(v => v.y <= 0) && futureBox.some(v => v.y >= 0);
+    }
+
+    findXAxisCollisionPos(maxVel, maxDepth) {
+        const rotationalCenter = new Vector(this.rotCx, this.rotCy);
+        let min = 0;
+        let max = maxVel;
+
+        for(let depth = 0; depth < maxDepth; depth++) {
+            const mid = (min + max) / 2;
+            const posVel = new Pose(0, 0, mid);
+
+            if(this.willCollideXAxis(posVel)) {
+                max = mid;
+            } else {
+                min = mid;
+            }
+        }
+
+        // Getting the final pose
+        const mid = (min + max) / 2;
+        const linearPosition = this.getLinearPos()
+            .subtract(rotationalCenter)
+            .transform(new VisualMatrix(
+                Math.cos(-mid), -Math.sin(-mid),
+                Math.sin(-mid),  Math.cos(-mid)
+            ))
+            .add(rotationalCenter);
+        return new Pose(
+            linearPosition.x,
+            linearPosition.y,
+            this.getTheta() + mid
+        );
+    } 
+    
+    findYAxisCollisionPos(maxVel, maxDepth, startY = -Infinity, endY = Infinity) {
+        const rotationalCenter = new Vector(this.rotCx, this.rotCy);
+        let min = 0;
+        let max = maxVel;
+
+        for(let depth = 0; depth < maxDepth; depth++) {
+            const mid = (min + max) / 2;
+            const posVel = new Pose(0, 0, mid);
+
+            if(this.willCollideYAxis(posVel, startY, endY)) {
+                max = mid;
+            } else {
+                min = mid;
+            }
+        }
+
+        // Getting the final pose
+        const mid = (min + max) / 2;
+        const linearPosition = this.getLinearPos()
+            .subtract(rotationalCenter)
+            .transform(new VisualMatrix(
+                Math.cos(-mid), -Math.sin(-mid),
+                Math.sin(-mid),  Math.cos(-mid)
+            ))
+            .add(rotationalCenter);
+        return new Pose(
+            linearPosition.x,
+            linearPosition.y,
+            this.getTheta() + mid
+        );
+    } 
+
+    /**
+     * Determines whether the robot will collide with the y axis. This is judged 
+     * based on the current velocity over some given time into the future.
+     * 
+     * @param {number} dt - Time into the future to experpolate, in seconds
+     * @param {number} startY - Lowest y coordinate the axis can be contacted
+     * @param {number} endY -  Highest y coordinate the axis an be contacted
+     * @returns {boolean} True if a collision will occur; false otherwise.
+     */
+    willCollideYAxis(poseVel, startY = -Infinity, endY = Infinity) {
+        const p = new Vector(0, startY);
+        const v2 = new Vector(0, endY - startY);
+        const addend2 = v2.y * p.x - v2.x * p.y;
+
+        // Comparing each segment with the given y-axis segment
+        const rotationalCenter = new Vector(this.rotCx, this.rotCy);
+        const futureBox = this
+            .getBoundingBox()
+            .map(v => v
+                .add(poseVel.position)
+                .subtract(rotationalCenter)
+                .transform(new VisualMatrix(
+                    Math.cos(-poseVel.theta), -Math.sin(-poseVel.theta),
+                    Math.sin(-poseVel.theta),  Math.cos(-poseVel.theta)
+                ))
+                .add(rotationalCenter)
+            );
+        
+        for(let i = 0; i < futureBox.length; i++) {
+            // Values related to just the box segment
+            const a = futureBox[i];
+            const v1 = futureBox[Util.loop(0, i + 1, futureBox.length)].subtract(a);
+            const addend1 = v1.x * a.y - v1.y * a.x;
+            
+            // Values that factor in both segments
+            const determ = v1.x * v2.y - v1.y * v2.x;
+            const sum1 = Math.sign(determ) * (v2.x * a.y - v2.y * a.x + addend2);
+            const sum2 = Math.sign(determ) * (v1.y * p.x - v1.x * p.y + addend1);
+
+            // Testing the intersection
+            if(
+                   0 <= sum1
+                && sum1 <= Math.abs(determ)
+                && 0 <= sum2
+                && sum2 <= Math.abs(determ)
+            ) {
+                return true;
+            }
+        }
+    }
+
     getCenterOfMass() {
-        const rotationCenter = new PhysicsEntity.Vector(this.rotCx, this.rotCy);
+        const rotationCenter = new Vector(this.rotCx, this.rotCy);
         return this.centerOfMassOffset
             .add(Util.unrot(this.position.position, -this.theta, rotationCenter))
             .subtract(rotationCenter)
-            .transform(new DOMMatrix([
-                Math.cos(-this.theta), Math.sin(-this.theta),
-                -Math.sin(-this.theta), Math.cos(-this.theta),
-                0, 0 
+            .transform(new VisualMatrix([
+                Math.cos(-this.theta), -Math.sin(-this.theta),
+                Math.sin(-this.theta),  Math.cos(-this.theta)
             ]))
             .add(rotationCenter)
     }
 
     getTopLeft() {
-        const rotationCenter = new PhysicsEntity.Vector(this.rotCx, this.rotCy);
+        const rotationCenter = new Vector(this.rotCx, this.rotCy);
         return this.unrotatedTopLeft
             .subtract(rotationCenter)
-            .transform(new DOMMatrix([
-                 Math.cos(-this.theta), Math.sin(-this.theta),
-                -Math.sin(-this.theta), Math.cos(-this.theta),
-                0, 0
+            .transform(new VisualMatrix([
+                Math.cos(-this.theta), -Math.sin(-this.theta),
+                Math.sin(-this.theta),  Math.cos(-this.theta)
             ]))
             .add(rotationCenter)
     }
 
     update(elapsed, deltaTime /* Seconds */) {
-        const rotationalCenter = new PhysicsEntity.Vector(this.rotCx, this.rotCy);
-
         // Updating theta
-        const deltaTheta = this.getAngularVel() * deltaTime; 
+        const rotationalCenter = new Vector(this.rotCx, this.rotCy);
+        let deltaTheta = this.getAngularVel() * deltaTime; 
+
+        if(this.willCollideXAxis(new Pose(0, 0, deltaTheta))) {
+            this.position = this.findXAxisCollisionPos(deltaTheta, 100);
+            this.velocity = new Pose(0, 0, 0);
+            deltaTheta = 0;
+        } else if(this.willCollideYAxis(new Pose(0, 0, deltaTheta), 0, this.barrierHeight)) {
+            this.position = this.findYAxisCollisionPos(deltaTheta, 100, 0, this.barrierHeight);
+            this.velocity = new Pose(0, 0, 0);
+            deltaTheta = 0;
+        }
+
         this.setTheta(this.getTheta() + deltaTheta);
 
         // Setting the x and y to reflect the rotation of the robot
         this.setLinearPos(this.getLinearPos()
             .subtract(rotationalCenter)
-            .transform(new DOMMatrix([
-                Math.cos(-deltaTheta), Math.sin(-deltaTheta),
-                -Math.sin(-deltaTheta), Math.cos(-deltaTheta),
-                0, 0 
+            .transform(new VisualMatrix([
+                Math.cos(-deltaTheta), -Math.sin(-deltaTheta),
+                Math.sin(-deltaTheta),  Math.cos(-deltaTheta),
             ]))
             .add(rotationalCenter)
         );
@@ -113,7 +273,6 @@ export default class Robot extends PhysicsEntity {
             -this.getAngularVel(),
             rotationalCenter
         ));
-
 
         // Settings the postions
         this.x = this.getX();
@@ -187,6 +346,17 @@ export default class Robot extends PhysicsEntity {
         ctx.moveTo(com.x, com.y);
         ctx.arc(com.x, com.y, Graph.scale(5), 0, 2 * Math.PI);
         ctx.fill();
+
+        // Barrier and ground
+        ctx.lineWidth = Graph.scale(3);
+        ctx.strokeStyle = "#8f88";
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, this.barrierHeight);
+
+        ctx.moveTo(Graph.minX, 0);
+        ctx.lineTo(Graph.maxX, 0);
+        ctx.stroke();
     }
 
     getSensor() {

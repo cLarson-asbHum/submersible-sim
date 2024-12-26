@@ -1,4 +1,5 @@
 import PhysicsEntity from "./PhysicsEntity.js";
+import VisualMatrix from "./VisualMatrix.js";
 
 export default class Util {
     static rad(degrees) {
@@ -56,13 +57,12 @@ export default class Util {
         return (x - cx) * Math.sin(theta) + (y - cy) * Math.cos(theta) + cy;
     }
 
-    static rot(vec, theta, rotC = new PhysicsEntity.Vector(0, 0)) {
+    static rot(vec, theta, rotC = new Vector(0, 0)) {
         return vec
             .subtract(rotC)
-            .transform(new DOMMatrix([
+            .transform(new VisualMatrix([
                 Math.cos(theta), -Math.sin(theta),
-                Math.sin(theta), Math.cos(theta),
-                0,
+                Math.sin(theta), Math.cos(theta)
             ]))
             .add(rotC);
     }
@@ -71,15 +71,26 @@ export default class Util {
         [  u cos(theta) + v sin(theta)  ]
         [ -u sin(theta) + v cos(theta)  ]
     */
-    static unrot(rotVec, theta, rotC = new PhysicsEntity.Vector(0, 0)) {
+    static unrot(rotVec, theta, rotC = new Vector(0, 0)) {
         return (rotVec
             .subtract(rotC)
-            .transform(new DOMMatrix([
-                Math.cos(-theta), Math.sin(-theta),
-                -Math.sin(-theta), Math.cos(-theta),
-                0, 0
+            .transform(new VisualMatrix([
+                Math.cos(-theta), -Math.sin(-theta),
+                Math.sin(-theta), Math.cos(-theta)
             ]))
             .add(rotC)
         );
-    } 
+    }
+
+    static mod(dividend, divisor) {
+        return ((dividend % divisor) + divisor) % divisor;
+    }
+    
+    static loop(min, x, max) {
+        return Util.mod(x - min, max - min) + min;
+    }
+
+    static loopRem(min, x, max) {
+        return ((x - min) % (max - min)) + min
+    }
 }
