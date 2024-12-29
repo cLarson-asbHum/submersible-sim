@@ -3,8 +3,9 @@ import VisualMatrix from "./VisualMatrix.js";
 import Vector from "./Vector.js";
 import PhysicsEntity from "./PhysicsEntity.js";
 import Graph from "./Graph.js";
-import { DistanceSensor, DistanceUnit } from "./Transliteration.js";
+import {DcMotorEx, DcMotorSimple, DistanceSensor, DistanceUnit} from "./Transliteration.js";
 import Pose from "./Pose.js";
+import Telemetry from "./Telemetry.js";
 
 export default class Robot extends PhysicsEntity {
     heightSensorOffset = -3;
@@ -14,13 +15,15 @@ export default class Robot extends PhysicsEntity {
     OFFSET_Y = 1;
 
     rotCx = 0;
-    rotCy = 18;
+    rotCy = 18.5;
+
+    highRung = new Vector(0, 36);
 
     theta = Util.rad(0);     // Radians clockwise
     width = 17;
     height = 10;
     unrotX = 0.5 + this.OFFSET_X + this.width / 2;
-    unrotY = 2 + this.OFFSET_Y + this.height / 2;
+    unrotY = 0 + this.OFFSET_Y + this.height / 2;
     x = Util.rotX(this.unrotX, this.unrotY, -this.theta, this.rotCx, this.rotCy);
     y = Util.rotY(this.unrotX, this.unrotY, -this.theta, this.rotCx, this.rotCy);
 
@@ -33,14 +36,21 @@ export default class Robot extends PhysicsEntity {
     // centerOfMassOffset = new Vector(-this.OFFSET_X - this.width / 2, 0);
     hookingOffset = new Vector(-0.5 - this.OFFSET_X - this.width / 2, 0); // Distance out the y-axis is when the robot is vertical, on the ground
 
-    hookRadius = 2;
-    armTheta = Util.rad(Util.rand(0, 90));  // Radians clockwise
-    // armTheta = 0;  // Radians clockwise
+    hookRadius = 1.2;
+    // armTheta = Util.rad(Util.rand(0, 90));  // Radians clockwise
+    armTheta = 0;  // Radians clockwise
     initialArmLength = this.OFFSET_X + this.width / 2 - this.hookRadius - 0.5;
     armLength = this.initialArmLength; // Units left
 
     #key = Symbol("robot.distanceSensor key");
     #sensor = new DistanceSensor(this.#key);
+    
+    linearSlidePivot = new DcMotorEx(312, 537.7);
+    linearSlideLift = new DcMotorEx(312, 537.7);
+    // handLift = new DcMotorSimple(40, 1);  // High torque servo
+    // handLift = new DcMotorSimple(90, 1);  // Speed servo
+    handLift = new DcMotorSimple(180, 1); // Super speed servo
+    handInchesPerRev = 0.3142759328996918863;
 
     constructor() {
         super(null);
@@ -280,6 +290,17 @@ export default class Robot extends PhysicsEntity {
         this.theta = this.getTheta();
 
         this.#sensor.setDistance(this.#key, DistanceUnit.INCH, this.y / Math.cos(this.theta) + this.heightSensorOffset);
+    
+        // Updating the arm stuff
+        this.armLength = this.liftTicksToHookDistInches(this.linearSlideLift.getCurrentPosition());
+        this.armTheta = this.pivotTicksToRadians(this.linearSlidePivot.getCurrentPosition());
+
+        //DEV START: arm telemetry
+        Telemetry.addData("length (in)", this.armLength);
+        Telemetry.addData("length (ticks)", Math.floor(this.linearSlideLift.getCurrentPosition()));
+        Telemetry.addData("theta (deg)", Util.deg(this.armTheta));
+        Telemetry.addData("theta (ticks)", Math.floor(this.linearSlidePivot.getCurrentPosition()));
+        // DEV END
     }
 
     render(ctx) {
@@ -349,7 +370,7 @@ export default class Robot extends PhysicsEntity {
 
         // Barrier and ground
         ctx.lineWidth = Graph.scale(3);
-        ctx.strokeStyle = "#8f88";
+        ctx.strokeStyle = "rgba(133, 196, 133, 255)";
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.lineTo(0, this.barrierHeight);
@@ -357,9 +378,100 @@ export default class Robot extends PhysicsEntity {
         ctx.moveTo(Graph.minX, 0);
         ctx.lineTo(Graph.maxX, 0);
         ctx.stroke();
+
+        // Rungs
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.beginPath();
+        ctx.moveTo(this.highRung.x, this.highRung.y/* , 0.5, 0, Math.PI * 2 */);
+        ctx.arc(this.highRung.x, this.highRung.y, 0.5, 0, Math.PI * 2);
+        ctx.moveTo(this.rotCx, this.rotCy/* , 0.5, 0, Math.PI * 2 */);
+        ctx.arc(this.rotCx, this.rotCy, 0.5, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     getSensor() {
         return this.#sensor;
+    }
+
+    actuate(deltaTime) {
+        // Powering the lift
+        this.handLift.setPower(1.0);
+        const deltaRev = this.handLift._update(deltaTime);
+        console.log(deltaRev);
+        
+        // Getting the upwards velocity and raising the thingy
+        const rotationCenter = new Vector(this.rotCx, this.rotCy);
+        this.setLinearPos(this.getLinearPos().add(
+            new Vector(0, deltaRev * this.handInchesPerRev)
+                .transform(new VisualMatrix(
+                    Math.cos(-this.theta), -Math.sin(-this.theta),
+                    Math.sin(-this.theta),  Math.cos(-this.theta)
+                ))
+        ));
+
+        // Setting the theta to reflect the change
+        // this.x = this.getX();
+        // this.y = this.getY();
+        // console.log(this.y);
+        // this.theta = this.getTheta();
+
+        // Cleaning up
+        this.handLift.setPower(0);
+    }
+
+    powerLift(power, dt) {
+        const previousPower = this.linearSlideLift.getPower();
+        this.linearSlideLift.setPower(power);
+        this.linearSlideLift._update(dt);
+        this.linearSlideLift.setPower(previousPower);
+
+        // Clamping the length of the arm
+        this.linearSlideLift
+            ._setCurrentPosition(Util.clamp(0, this.linearSlideLift.getCurrentPosition(), 4000));
+    }
+
+    powerPivot(power, dt) {
+        const previousPower = this.linearSlidePivot.getPower();
+        this.linearSlidePivot.setPower(power);
+        this.linearSlidePivot._update(dt);
+        this.linearSlidePivot.setPower(previousPower);
+
+        // Clamping the position of the pivot
+        this.linearSlidePivot
+            ._setCurrentPosition(Util.clamp(0, this.linearSlidePivot.getCurrentPosition(), 6000));
+    }
+
+    /**
+     * Finds how far the hook is away from the pivot. In other words, this 
+     * converts lift ticks to inches, with an offset to desribe the hook's 
+     * position.
+     * 
+     * @param {number} ticks
+     * @return {number} The distance the hook is away from the pivot 
+     */
+    liftTicksToHookDistInches(ticks) {
+        return this.liftTicksToInches(ticks) + this.initialArmLength;
+    }
+    
+    /**
+     * Calculates the extension of the arm out front. To be technical, this is 
+     * not the length of the arm, as the arm cannot be length 0, but is rather
+     * the length of the arm 
+     * 
+     * @param {number} ticks 
+     * @returns Inches the arm has extended out once the motor driving the arm 
+     *     has reach the given set point.
+     */
+    liftTicksToInches(ticks) {
+        // FIXME: Test this to make sure its truly accurate to the length
+        const EXTENSION_LIMIT = 42;
+        const ROBOT_LENGTH = 17;
+        return ticks * (EXTENSION_LIMIT - ROBOT_LENGTH) / 2500;
+    }
+
+    pivotTicksToRadians(ticks) {
+        const GEARING = 28;
+        const TICKS_PER_REV = 537.7;
+        return ticks * (2 * Math.PI) / (GEARING * TICKS_PER_REV);
     }
 }

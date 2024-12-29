@@ -19,7 +19,11 @@ canvas {
     height: 100%;
 }
 
-p {
+.p-wrapper {
     position: absolute;
     right: 1em;
+}
+
+.p-wrapper {
+    text-align: right;
 }

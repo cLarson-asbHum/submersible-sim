@@ -8,15 +8,24 @@
     <link rel="stylesheet" href="index.css">
 </head>
 <body>
-    <p></p>
+    <div class="p-wrapper">
+        <p id="mouse-pos"></p>
+        <p id="key-actions"></p>
+    </div>
     <canvas></canvas>
 
+    <script type="module" src="scripts/Telemetry.js"></script>
     <script type="module" src="scripts/Util.js"></script>
     <script type="module" src="scripts/VisualMatrix.js"></script>
     <script type="module" src="scripts/Vector.js"></script>
     <script type="module" src="scripts/Pose.js"></script>
     <!-- <script type="module" src="scripts/BoundingBox.js"></script> -->
     <script type="module" src="scripts/PhysicsEntity.js"></script>
+    <script type="module" src="scripts/transliteration/DistanceUnit.js"></script>
+    <script type="module" src="scripts/transliteration/TimeUnit.js"></script>
+    <script type="module" src="scripts/transliteration/DistanceSensor.js"></script>
+    <script type="module" src="scripts/transliteration/DcMotorSimple.js"></script>
+    <script type="module" src="scripts/transliteration/DcMotorEx.js"></script>
     <script type="module" src="scripts/Transliteration.js"></script>
     <script type="module" src="scripts/AscentStabilizer.js"></script>
     <script type="module" src="scripts/Graph.js"></script>
