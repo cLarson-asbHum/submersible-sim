@@ -2,6 +2,8 @@ import PhysicsEntity from "./PhysicsEntity.js";
 import VisualMatrix from "./VisualMatrix.js";
 
 export default class Util {
+    static TAU = Math.PI + Math.PI;
+
     static rad(degrees) {
         return degrees * Math.PI / 180;
     }
@@ -92,5 +94,9 @@ export default class Util {
 
     static loopRem(min, x, max) {
         return ((x - min) % (max - min)) + min
+    }
+
+    static normAngle(theta) {
+        return theta - Util.TAU * Math.floor((theta + Math.PI) / Util.TAU);
     }
 }
