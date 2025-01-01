@@ -33,11 +33,11 @@ export default class Arc {
     }
 
     getX() {
-        return this.center.getX();
+        return this.center.x;
     }
     
     getY() {
-        return this.center.getY();
+        return this.center.y;
     }
 
     getR() {

@@ -12,7 +12,7 @@ const ctx = canvas.getContext('2d');
 let startTime = NaN;
 let lastTime = 0;
 let nextFrame;
-let pauseStartTime;
+let pauseStartTime = 0;
 let isPaused = false;
 
 let cw, ch, cmin, hcw, hch, hcmin;
@@ -23,29 +23,33 @@ let speedFactor = 1.0;
 
 function handleKey(key, deltaTime) {
     // Changing the power of other actions if shift is held
-    if(key == "Shift") {
+    if(key.toLowerCase() == "Shift".toLowerCase() || key=="\"") {
         speedFactor *= 0.5;
     }
 
     // Running the action
-    switch(key) {
-        case "ArrowUp": 
+    switch(key.toLowerCase()) {
+        case "w":
+        case "ArrowUp".toLowerCase(): 
             robot.powerLift(1.0 * speedFactor, deltaTime);
             break;
 
-        case "ArrowDown": 
+        case "s":    
+        case "ArrowDown".toLowerCase(): 
             robot.powerLift(-1.0 * speedFactor, deltaTime);
             break;
 
-        case "ArrowRight": 
+        case "d":    
+        case "ArrowRight".toLowerCase(): 
             robot.powerPivot(1.0 * speedFactor, deltaTime);
             break;
 
-        case "ArrowLeft": 
+        case "a":    
+        case "ArrowLeft".toLowerCase(): 
             robot.powerPivot(-1.0 * speedFactor, deltaTime);
             break;
 
-        case "Enter":
+        case "Enter".toLowerCase():
             robot.actuate(deltaTime);
 
         default: 
@@ -54,52 +58,70 @@ function handleKey(key, deltaTime) {
     }
 }
 
-function getKeyActionName(key) {
-    switch(key) {
-        case "ArrowUp": 
+function getKeyActionName(key, pausedWhenPressed = isPaused) {
+    switch(key.toLowerCase()) {
+        case "w":
+        case "ArrowUp".toLowerCase(): 
             return "Arm Going Up";
 
-        case "ArrowDown": 
+        case "s":
+        case "ArrowDown".toLowerCase(): 
             return "Arm Going Down"
 
-        case "ArrowRight": 
+        case "d":
+        case "ArrowRight".toLowerCase(): 
             return "Pivoting Right";
 
-        case "ArrowLeft":
+        case "a":
+        case "ArrowLeft".toLowerCase():
             return "Pivoting Left";
 
-        case "Enter":
+        case "Enter".toLowerCase():
             return "Actuating";
-
-        case "Shift":
+ 
+        // case "'":
+        case '"':
+        case "Shift".toLowerCase():
             return "Slowing All Arm Actions";
 
         case "p":
-        case " ":
-            return "Pausing";
+            return "Paused";
+
+        case " ": {
+            let actionName = "Paused";
+            if(pausedWhenPressed) {
+                actionName = "Unpausing";
+            }
+            return actionName;
+        }
 
         case "u":
-        case "Escape":
-            return "unpausing";
+        case "Escape".toLowerCase():
+            return "Unpausing";
 
         default: 
             return `Unknown Action "${key}"`;
     }
 }
 
+function displayHeldKeys(pausedWhenPressed = isPaused) {
+    document.getElementById('key-actions').textContent = "";
+    for(const key of heldKeys) {
+        document.getElementById('key-actions').innerText += getKeyActionName(key, pausedWhenPressed) + "\n";
+    }
+}
+
 function render(elapsed, deltaTime) {
-    Util.clear(ctx);
+    // Util.clear(ctx);
     Graph.drawAxes(ctx);
     robot.render(ctx);
     
     // Showing the current actions from the keys
-    document.getElementById('key-actions').textContent = "";
-    for(const key of heldKeys) {
-        document.getElementById('key-actions').innerText += getKeyActionName(key) + "\n";
-    }
+    displayHeldKeys(isPaused);
 }
 
 function loop(timestamp) {
+    // const FRAME = 1/60;
     const elapsed = Util.seconds(timestamp - startTime);
     const deltaTime = elapsed - lastTime;
 
@@ -110,13 +132,16 @@ function loop(timestamp) {
     }
 
     // Updating the robot's position data;
-    robot.update(elapsed, deltaTime);
+    Util.clear(ctx);
+    robot.update(elapsed, deltaTime, pause);
     render(elapsed, deltaTime);
 
     // Finishing up
     Telemetry.update(elapsed);
     lastTime = elapsed;
-    nextFrame = window.requestAnimationFrame(loop);
+    if(!isPaused) {
+        nextFrame = window.requestAnimationFrame(loop);
+    }
 }
 
 function resizeInit(timestamp) {
@@ -176,6 +201,8 @@ function pause(t) {
         return;
     } 
 
+    // Telemetry.dump(t - startTime);
+    render(t - startTime, t - startTime - lastTime);
     cancelAnimationFrame(nextFrame);
     pauseStartTime = t - startTime;
     isPaused = true;
@@ -187,8 +214,8 @@ function unpause(t) {
     }
 
     startTime += t - startTime - pauseStartTime;
-    nextFrame = window.requestAnimationFrame(loop);
     isPaused = false; 
+    nextFrame = window.requestAnimationFrame(loop);
 }
 
 const heldKeys = new Set();
@@ -196,9 +223,18 @@ const heldKeys = new Set();
 
 DistanceUnit.init();
 
+
 nextFrame = window.requestAnimationFrame(t => {
     resizeInit(t);
+    window.dispatchEvent(new KeyboardEvent("keydown", {
+        key: 'p',
+        timeStamp: t
+    }));
     loop(t);
+    window.dispatchEvent(new KeyboardEvent("keyup", {
+        key: 'p',
+        timeStamp: t
+    }));
 });
 
 window.addEventListener('resize', ({timeStamp}) => resizeInit(timeStamp));
@@ -209,20 +245,43 @@ window.addEventListener("mousemove", ({x, y}) => {
 
 window.addEventListener("keydown", event => {
     const {key} = event;
-    event.preventDefault();
-    heldKeys.add(key);
+    // event.preventDefault();
+    heldKeys.add(key.toLowerCase());
 
-    if(key == "p" || key == " ") {
+    if(key.toLowerCase() == "p" || (key.toLowerCase() == " " && !isPaused)) {
         pause(event.timeStamp);
+        return; // Prevent fallthrough to the next if (if any)
     }
 
-    if(key == "u" || key == "Escape") {
+    if(key.toLowerCase() == "u" || key.toLowerCase() == "escape" || (key == " " && isPaused)) {
         unpause(event.timeStamp);
+        return; // Prevent fallthrough to the next if (if any)
     }
 }, {passive: false});
 
 window.addEventListener('keyup', event => {
     const {key} = event;
     event.preventDefault();
-    heldKeys.delete(key);
+
+    
+    if(key == "\"" || key == "'") {
+        heldKeys.delete("\"");
+        heldKeys.delete("'");
+        return ;
+    }
+
+    heldKeys.delete(key.toLowerCase());
 }, {passive: false});
+
+document.addEventListener('visibilitychange', event => {
+    const {timeStamp: t} = event;
+    window.dispatchEvent(new KeyboardEvent("keydown", {
+        key: 'p',
+        timeStamp: t
+    }));
+    loop(t);
+    window.dispatchEvent(new KeyboardEvent("keyup", {
+        key: 'p',
+        timeStamp: t
+    }));
+}, {passive: true});

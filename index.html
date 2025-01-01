@@ -12,6 +12,10 @@
         <p id="mouse-pos"></p>
         <p id="key-actions"></p>
     </div>
+    <div class="p-wrapper telem-wrapper">
+        <div>Hide Telemetry: <input type="checkbox" name="hide-telem" id="hide-telem" class="hide"></div>
+        <pre id="telemetry"></pre>
+    </div>
     <canvas></canvas>
 
     <!-- Utility and Classes -->
@@ -38,7 +42,7 @@
     <script type="module" src="scripts/Graph.js"></script>
     <script type="module" src="scripts/Robot.js"></script>
 
-    <!-- Control Classes -->
+    <!-- Control Classes/Files -->
     <!-- Dictate the flow of the program or other classes -->
     <script type="module" src="scripts/AscentStabilizer.js"></script>
     <script type="module" src="scripts/index.js"></script>

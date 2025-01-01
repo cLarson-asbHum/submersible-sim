@@ -23,7 +23,6 @@ export default class DcMotorSimple {
     _update(deltaTime) {
         const deltaTick = this.#velocity * deltaTime;
         this.#currentPosition += deltaTick;
-        console.log("pos: " + this.#currentPosition);
         return deltaTick;
     }
 
