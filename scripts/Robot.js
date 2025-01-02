@@ -381,8 +381,8 @@ export default class Robot extends PhysicsEntity {
             const edgeTheta = Math.sign(thetaFromRung) * Math.atan(0.5 / 18);
             const t = 1 + (thetaFromRung - edgeTheta) / (state.deltaArmTheta + state.deltaTheta); // Lerp param from edge (t=1) to end of arc (t=0)
             
-            state.deltaArmTheta *= t * deltaTime;
-            state.deltaTheta *= t * deltaTime;
+            state.deltaArmTheta *= t;
+            state.deltaTheta *= t;
             this.#isPinned = true;
             
             Telemetry.addLine('\n-------- Angular Collision -------\n');
@@ -405,12 +405,25 @@ export default class Robot extends PhysicsEntity {
                 armLinearVel.scale(-1),
                 this.#rotationalCenter
             ));
-            state.deltaTheta += 5 * PhysicsEntity.rotationalVelFrom(
+            state.deltaTheta += PhysicsEntity.rotationalVelFrom(
                 this.getLinearPos(),
-                armLinearVel.scale(-1),
+                armLinearVel.add(rungDiamAddend).scale(-1),
                 this.#rotationalCenter
             );
-            state.deltaLength = 0;
+
+            // Putting the arm at the point of collision
+            const distFromRung = lineCollisions[0].subtract(this.highRung).norm();
+            const rungDiam = 0.5;
+            const t = 1 - (distFromRung - rungDiam) / (state.deltaLength); // Lerp param from edge (t=1) to end of vector (t=0)
+            
+            state.deltaLength *= t;
+
+            Telemetry.addLine('\n----- Linear Collision ---- \n');
+            Telemetry.addData("lineCollisions", `[${lineCollisions.join(', ')}]`);
+            Telemetry.addData(`distFromRun`,  distFromRung);
+            Telemetry.addData(`rungDiam`,  rungDiam);
+            Telemetry.addData(`t`,  t);
+
         }
 
         // Checking collision between the chasis and the axes
