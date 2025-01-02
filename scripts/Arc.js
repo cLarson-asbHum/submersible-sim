@@ -210,7 +210,7 @@ export default class Arc {
             return [];
         }
 
-        const xRadical = Math.sqrt(b * b * discriminant) / sqrSum;
+        const xRadical = b * Math.sqrt(discriminant) / sqrSum;
         const yRadical = a * Math.sqrt(discriminant) / sqrSum;
 
         // --- PLUS ---
