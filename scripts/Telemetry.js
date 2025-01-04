@@ -11,7 +11,7 @@ export default class Telemetry {
         this.#contents += `${caption}${this.captionSeparator}${data}\n`;
     }
 
-    static addLine(data) {
+    static addLine(data = "") {
         this.#contents += data + "\n";
     }
 

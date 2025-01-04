@@ -2,8 +2,9 @@ import Util from "./Util.js";
 import AscentStabilizer from "./AscentStabilizer.js";
 import Robot from "./Robot.js";
 import Graph from "./Graph.js";
-import {DistanceUnit, TimeUnit, DistanceSensor} from "./Transliteration.js";
+import {DistanceUnit, TimeUnit, DistanceSensor, ElapsedTime, } from "./Transliteration.js";
 import Telemetry from "./Telemetry.js";
+import IntoTheDeepTeleop from "./IntoTheDeepTeleop.js";
 
 console.clear();
 
@@ -19,7 +20,7 @@ let cw, ch, cmin, hcw, hch, hcmin;
 
 let robot = null;
 let ascentStabilizer = null;
-let speedFactor = 1.0;
+let teleop = null;
 
 function handleKey(key, deltaTime) {
     // Changing the power of other actions if shift is held
@@ -95,6 +96,9 @@ function getKeyActionName(key, pausedWhenPressed = isPaused) {
             return actionName;
         }
 
+        case "!":
+            return "Debugging...";
+
         case "u":
         case "Escape".toLowerCase():
             return "Unpausing";
@@ -120,16 +124,25 @@ function render(elapsed, deltaTime) {
     displayHeldKeys(isPaused);
 }
 
-function loop(timestamp) {
-    // const FRAME = 1/60;
-    const elapsed = Util.seconds(timestamp - startTime);
-    const deltaTime = elapsed - lastTime;
 
-    // Handling each key held
-    speedFactor = 1.0;
-    for(const key of heldKeys) {
-        handleKey(key, deltaTime);
-    }
+let lastSecond = 0;
+let frames = 0;
+
+function loop(timestamp) {
+    const FRAME = 1/60;
+    const deltaTime = Math.min(Util.seconds(timestamp - startTime) - lastTime, FRAME);
+    const elapsed = lastTime + deltaTime;
+    // const FRAME = 1/60;
+    // const elapsed = Util.seconds(timestamp - startTime);
+    // const deltaTime = ◘FRAME;
+    // const elapsed = lastTime + FRAME;
+    // const deltaTime = elapsed - lastTime;
+    Telemetry.addData("<deltaTime>", deltaTime);
+
+    // Running the teleop logic
+    ElapsedTime._update(elapsed);
+    teleop._setHeldKeys(heldKeys);
+    teleop._update(elapsed);
 
     // Updating the robot's position data;
     Util.clear(ctx);
@@ -137,6 +150,16 @@ function loop(timestamp) {
     render(elapsed, deltaTime);
 
     // Finishing up
+    frames++;
+    if(elapsed - lastSecond >= 1) {
+        console.log('fps: ', frames);
+        frames = 0;
+        lastSecond += 1;
+    }
+
+    debugHere();
+    
+    Telemetry.setMsTransmissionInterval(200);
     Telemetry.update(elapsed);
     lastTime = elapsed;
     if(!isPaused) {
@@ -171,27 +194,27 @@ function resizeInit(timestamp) {
         console.log(robot);
     }
 
-    if(!ascentStabilizer) {
-        console.log("Help?");
-        ascentStabilizer = AscentStabilizer.create(robot.getSensor(), Util.seconds(timestamp), robot.heightSensorOffset);
-        ascentStabilizer.hc = robot.rotCy;
-        ascentStabilizer.r = robot.hookRadius;
-        ascentStabilizer.xc = robot.unrotX;
-        ascentStabilizer.update(Util.seconds(timestamp));
+    // if(!ascentStabilizer) {
+    //     console.log("Help?");
+    //     ascentStabilizer = AscentStabilizer.create(robot.getSensor(), Util.seconds(timestamp), robot.heightSensorOffset);
+    //     ascentStabilizer.hc = robot.rotCy;
+    //     ascentStabilizer.r = robot.hookRadius;
+    //     ascentStabilizer.xc = robot.unrotX;
+    //     ascentStabilizer.update(Util.seconds(timestamp));
         
-        // Just some quick tests
-        console.log("y: ", ascentStabilizer.y());
-        console.log("deltaY: ", ascentStabilizer.deltaY());
-        console.log("yPrime: ", ascentStabilizer.yPrime(100));
-        console.log("theta: ", ascentStabilizer.theta());
-        console.log("l: ", ascentStabilizer.l());
-        console.log("thetaPrime: ", ascentStabilizer.thetaPrime(100));
-        console.log("lPrime: ", ascentStabilizer.lPrime(100));
+    //     // Just some quick tests
+    //     console.log("y: ", ascentStabilizer.y());
+    //     console.log("deltaY: ", ascentStabilizer.deltaY());
+    //     console.log("yPrime: ", ascentStabilizer.yPrime(100));
+    //     console.log("theta: ", ascentStabilizer.theta());
+    //     console.log("l: ", ascentStabilizer.l());
+    //     console.log("thetaPrime: ", ascentStabilizer.thetaPrime(100));
+    //     console.log("lPrime: ", ascentStabilizer.lPrime(100));
+    // }
+
+    if(!teleop) {
+        teleop = new IntoTheDeepTeleop(robot, timestamp - startTime);
     }
-    // robot.x = hcw;
-    // robot.y = hch;
-    // robot.width = 100;
-    // robot.height = 100;
 
     render(timestamp - startTime, timestamp - lastTime);
 }
@@ -217,6 +240,22 @@ function unpause(t) {
     isPaused = false; 
     nextFrame = window.requestAnimationFrame(loop);
 }
+
+// DEV START 
+// FIXME: DO. NOT. LEAVE. THIS. IN. Remove it for prod!
+let debugsRemaining = 0;
+
+function enterDebug(debugDepth = 1) {
+    debugsRemaining += debugDepth;
+}
+
+function debugHere() {
+    if(debugsRemaining > 0) {
+        debugsRemaining--;
+        debugger;
+    }
+}
+// DEV END
 
 const heldKeys = new Set();
 
@@ -257,6 +296,13 @@ window.addEventListener("keydown", event => {
         unpause(event.timeStamp);
         return; // Prevent fallthrough to the next if (if any)
     }
+
+    // DEV START: FIXME: This is dumb debugging stuff!
+    if(key.toLowerCase() == "!") {
+        enterDebug();
+        return;
+    }
+    // DEV
 }, {passive: false});
 
 window.addEventListener('keyup', event => {

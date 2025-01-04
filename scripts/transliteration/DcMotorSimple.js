@@ -3,7 +3,7 @@ import Util from "/scripts/Util.js";
 export default class DcMotorSimple {
     #maxTickSpeed;
     #ticksPerRev;
-    #velocity;
+    #velocity = 0;
     #currentPosition = 0;
 
     constructor(rpm, rev, pos = 0) {

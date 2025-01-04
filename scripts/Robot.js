@@ -29,13 +29,13 @@ export default class Robot extends PhysicsEntity {
     #theta = Util.rad(0);     // Radians clockwise
     width = 17;
     height = 10;
-    #unrotX = 0.5 + this.OFFSET_X + this.width / 2;
-    #unrotY = 0 + this.OFFSET_Y + this.height / 2;
-    #x = Util.rotX(this.#unrotX, this.#unrotY, -this.#theta, this.rotCx, this.rotCy);
-    #y = Util.rotY(this.#unrotX, this.#unrotY, -this.#theta, this.rotCx, this.rotCy);
+    unrotX = 0.5 + this.OFFSET_X + this.width / 2;
+    #unrotY = Util.rand(0, 2) + this.OFFSET_Y + this.height / 2;
+    #x = Util.rotX(this.unrotX, this.#unrotY, -this.#theta, this.rotCx, this.rotCy);
+    #y = Util.rotY(this.unrotX, this.#unrotY, -this.#theta, this.rotCx, this.rotCy);
 
     unrotatedTopLeft = new Vector(
-        this.#unrotX - this.OFFSET_X - this.width / 2,
+        this.unrotX - this.OFFSET_X - this.width / 2,
         this.#unrotY - this.OFFSET_Y - this.height / 2
     );
     #centerOfMassOffset = new Vector(-this.OFFSET_X, -this.OFFSET_Y);
@@ -44,7 +44,7 @@ export default class Robot extends PhysicsEntity {
     hookingOffset = new Vector(-0.5 - this.OFFSET_X - this.width / 2, 0); // Distance out the y-axis is when the robot is vertical, on the ground
 
     hookRadius = 1.25;
-    // armTheta = Util.rad(Util.rand(0, 90));  // Radians clockwise
+    // #armTheta = Util.rad(Util.rand(0, 90));  // Radians clockwise
     #armTheta = 0;  // Radians clockwise
     initialArmLength = this.OFFSET_X + this.width / 2 - this.hookRadius - 0.5;
     #armLength = this.initialArmLength; // Units left
@@ -60,13 +60,11 @@ export default class Robot extends PhysicsEntity {
     // handLift = new DcMotorSimple(40, 1);  // High torque servo
     // handLift = new DcMotorSimple(90, 1);  // Speed servo
     handLift = new DcMotorSimple(180, 1); // Super speed servo
-    #handInchesPerRev = 0.3142759328996918863;
-    
-    #isPinned = false; // Whether the robot is held by both the hands and arm
+    #handInchesPerRev = -0.3142759328996918863;
 
     constructor() {
         super(null);
-        this.velocity.position = new Vector(0, -10);
+        this.velocity.position = new Vector(0, 0);
         this.position.setX(this.#x);
         this.position.setY(this.#y);
         this.position.setTheta(this.#theta);
@@ -79,9 +77,10 @@ export default class Robot extends PhysicsEntity {
         this.#sensor.setDistance(this.#key, DistanceUnit.INCH, this.#y / Math.cos(this.#theta) + this.heightSensorOffset);
 
         // DEV START: setting the motor positions to be nice
-        this.linearSlideLift._setCurrentPosition(2626);
-        this.linearSlidePivot._setCurrentPosition(2728);
+        this.linearSlideLift._setCurrentPosition(Util.rand(0, 3000));
+        this.linearSlidePivot._setCurrentPosition(Util.rand(0, 3000));
         this.#armTheta = this.#pivotTicksToRadians(this.linearSlidePivot.getCurrentPosition());
+        this.#armLength = this.#liftTicksToHookDistInches(this.linearSlideLift.getCurrentPosition());
         // DEV END
     }
 
@@ -251,45 +250,45 @@ export default class Robot extends PhysicsEntity {
         const bothFiltered = oneFiltered.filter(v => hook.sectorContains(v)); // only those on the *arc*, not circle
 
         // DEV START: Logging the linear intersections and line
-        let start = new Vector(0, 0);
-        let end = new Vector(0, 0);
+        // let start = new Vector(0, 0);
+        // let end = new Vector(0, 0);
 
-        if(vel.x == 0 && vel.y !== 0) {
-            start = new Vector(0, Graph.minY);
-            end = new Vector(0, Graph.maxY);
-        // } else if(vel.y == 0) {
-        //     ctx.moveTo(Graph.minX, this.highRung.y);
-        //     ctx.lineTo(Graph.maxX, this.highRung.y);
-        } else if(vel.x !== 0 && vel.y !== 0) {
-            start = new Vector(Graph.minX, vel.y * Graph.minX / vel.x + this.highRung.y);
-            end = new Vector(Graph.maxX, vel.y * Graph.maxX / vel.x + this.highRung.y);
-        }
+        // if(vel.x == 0 && vel.y !== 0) {
+        //     start = new Vector(0, Graph.minY);
+        //     end = new Vector(0, Graph.maxY);
+        // // } else if(vel.y == 0) {
+        // //     ctx.moveTo(Graph.minX, this.highRung.y);
+        // //     ctx.lineTo(Graph.maxX, this.highRung.y);
+        // } else if(vel.x !== 0 && vel.y !== 0) {
+        //     start = new Vector(Graph.minX, vel.y * Graph.minX / vel.x + this.highRung.y);
+        //     end = new Vector(Graph.maxX, vel.y * Graph.maxX / vel.x + this.highRung.y);
+        // }
 
-        ctx.strokeStyle = "rgba(0, 255, 0, 0.5)";
-        ctx.lineWidth = Graph.scale(5);
-        ctx.lineCap = "butt";
-        ctx.lineDashOffset = -start.subtract(this.highRung).norm();
-        ctx.setLineDash([Graph.scale(10), Graph.scale(10)]);
-        ctx.beginPath();
-        ctx.moveTo(start.x, start.y);
-        ctx.lineTo(end.x, end.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.lineCap = "round";
-        ctx.lineDashOffset = 0.0;
+        // ctx.strokeStyle = "rgba(0, 255, 0, 0.5)";
+        // ctx.lineWidth = Graph.scale(5);
+        // ctx.lineCap = "butt";
+        // ctx.lineDashOffset = -start.subtract(this.highRung).norm();
+        // ctx.setLineDash([Graph.scale(10), Graph.scale(10)]);
+        // ctx.beginPath();
+        // ctx.moveTo(start.x, start.y);
+        // ctx.lineTo(end.x, end.y);
+        // ctx.stroke();
+        // ctx.setLineDash([]);
+        // ctx.lineCap = "round";
+        // ctx.lineDashOffset = 0.0;
 
-        ctx.strokeStyle = "lime";
-        ctx.beginPath();
-        ctx.moveTo(this.highRung.x, this.highRung.y);
-        ctx.lineTo(this.highRung.x + vel.x, this.highRung.y + vel.y);
-        ctx.stroke();
+        // ctx.strokeStyle = "lime";
+        // ctx.beginPath();
+        // ctx.moveTo(this.highRung.x, this.highRung.y);
+        // ctx.lineTo(this.highRung.x + vel.x, this.highRung.y + vel.y);
+        // ctx.stroke();
 
-        ctx.fillStyle = "white";
-        ctx.beginPath();
-        for(const inter of bothFiltered) {
-            ctx.arc(inter.x, inter.y, Graph.scale(5), 0, Util.TAU);
-        }
-        ctx.fill();
+        // ctx.fillStyle = "white";
+        // ctx.beginPath();
+        // for(const inter of bothFiltered) {
+        //     ctx.arc(inter.x, inter.y, Graph.scale(5), 0, Util.TAU);
+        // }
+        // ctx.fill();
         // DEV END
 
         // Returning the intersections
@@ -379,11 +378,10 @@ export default class Robot extends PhysicsEntity {
             // Putting the arm and robot at the point of collision
             const thetaFromRung = rotCollisions[0] - Util.rad(90);
             const edgeTheta = Math.sign(thetaFromRung) * Math.atan(0.5 / 18);
-            const t = 1 + (thetaFromRung - edgeTheta) / (state.deltaArmTheta + state.deltaTheta); // Lerp param from edge (t=1) to end of arc (t=0)
+            const t = (thetaFromRung - edgeTheta) / Math.abs(state.deltaArmTheta + state.deltaTheta); // Lerp param from edge (t=0) to end of arc (t=1)
             
             state.deltaArmTheta *= t;
             state.deltaTheta *= t;
-            this.#isPinned = true;
             
             Telemetry.addLine('\n-------- Angular Collision -------\n');
             Telemetry.addData("hookCollisions", `[${rotCollisions.join(', ')}]`);
@@ -407,14 +405,14 @@ export default class Robot extends PhysicsEntity {
             ));
             state.deltaTheta += PhysicsEntity.rotationalVelFrom(
                 this.getLinearPos(),
-                armLinearVel.add(rungDiamAddend).scale(-1),
+                armLinearVel/* .add(armLinearVel.scale(0.5 / armLinearVel.norm())) */.scale(-1),
                 this.#rotationalCenter
             );
 
             // Putting the arm at the point of collision
             const distFromRung = lineCollisions[0].subtract(this.highRung).norm();
             const rungDiam = 0.5;
-            const t = 1 - (distFromRung - rungDiam) / (state.deltaLength); // Lerp param from edge (t=1) to end of vector (t=0)
+            const t = (distFromRung - rungDiam) / Math.abs(state.deltaLength); // Lerp param from edge (t=0) to end of vector (t=1)
             
             state.deltaLength *= t;
 
@@ -447,12 +445,20 @@ export default class Robot extends PhysicsEntity {
     }
 
     update(elapsed, deltaTime /* Seconds */, pause = (t) => {}) {
-        this.#isPinned = true;
         
         // Updating theta
-        let deltaArmTheta = this.#pivotTicksToRadians(this.#deltaPivotPos);
+        Telemetry.addLine("\n---------- Powers ---------\n");
+        Telemetry.addData("this.linearSlidePivot.getPower()", this.linearSlidePivot.getPower());
+        Telemetry.addData("this.linearSlidePivot.getVelocity()", this.linearSlidePivot.getVelocity());
+        Telemetry.addData("this.linearSlideLift.getPower()", this.linearSlideLift.getPower());
+        Telemetry.addData("this.linearSlideLift.getVelocity()", this.linearSlideLift.getVelocity());
+        Telemetry.addData("this.handLift.getPower()", this.handLift.getPower());
+        // Telemetry.addData("this.handLift.getVelocity()", this.handLift.getVelocity());
+
+        let deltaArmTheta = this.#pivotTicksToRadians(this.powerPivot(deltaTime));
         let deltaTheta = this.getAngularVel() * deltaTime; 
-        let deltaLength = this.#liftTicksToInches(this.#deltaLiftPos);
+        let deltaLength = this.#liftTicksToInches(this.powerLift(deltaTime));
+        const deltaActuate = this.#handInchesPerRev * this.actuate(deltaTime); 
 
         // Performing collison checks and updates
         const collisonState = { deltaArmTheta, deltaTheta, deltaLength };
@@ -465,10 +471,10 @@ export default class Robot extends PhysicsEntity {
         this.setTheta(this.getTheta() + deltaTheta);
 
         // Actuating the robot
-        this.#unrotY += this.#deltaHandPos * this.#handInchesPerRev;
+        this.#unrotY += deltaActuate;
 
         // Setting the x and y to reflect the rotation of the robot
-        this.setLinearPos(new Vector(this.#unrotX, this.#unrotY)
+        this.setLinearPos(new Vector(this.unrotX, this.#unrotY)
             .subtract(this.#rotationalCenter)
             .transform(new VisualMatrix(
                 Math.cos(-this.getTheta()), -Math.sin(-this.getTheta()),
@@ -499,26 +505,27 @@ export default class Robot extends PhysicsEntity {
         this.#y = this.getY();
         this.#theta = this.getTheta();
 
-        this.#sensor.setDistance(this.#key, DistanceUnit.INCH, this.#y / Math.cos(this.#theta) + this.heightSensorOffset);
+        // FIXME: Make this appropriate to the rotation, so that it is accurate to real life
+        this.#sensor.setDistance(this.#key, DistanceUnit.INCH, this.#y);
     
         // Updating the arm stuff
         Telemetry.addLine('\n------------- Arm -------------\n');
-        Telemetry.addData("delta lift pos", Math.floor(this.#deltaLiftPos));
+        // Telemetry.addData("delta lift pos", Math.floor(this.#deltaLiftPos));
         Telemetry.addData("delta arm length", this.#liftTicksToInches(this.#deltaLiftPos));
-        Telemetry.addData("delta pivot pos", Math.floor(this.#deltaPivotPos));
+        // Telemetry.addData("delta pivot pos", Math.floor(this.#radiansToPivotTicks));
         Telemetry.addData("delta arm theta (deg)", Util.deg(deltaArmTheta));
 
         // this.#armLength = this.#liftTicksToHookDistInches(this.linearSlideLift.getCurrentPosition());
         // this.#armLength = this.#liftTicksToHookDistInches(this.linearSlideLift.getCurrentPosition());
         this.#armLength += deltaLength;
-        this.linearSlideLift._setCurrentPosition(this.#inchesToLiftTicks(this.#armLength));
+        this.linearSlideLift._setCurrentPosition(this.#hookDistInchesToLiftTicks(this.#armLength));
         this.#armTheta += deltaArmTheta;
         this.linearSlidePivot._setCurrentPosition(this.#radiansToPivotTicks(this.#armTheta));
         this.#deltaLiftPos = 0;
         this.#deltaPivotPos = 0;
         this.#deltaHandPos = 0;
 
-        Telemetry.setMsTransmissionInterval(100);
+        // Telemetry.setMsTransmissionInterval(100);
         Telemetry.addData("arm length (in)", this.#armLength);
         Telemetry.addData("arm length (ticks)", Math.floor(this.linearSlideLift.getCurrentPosition()));
         Telemetry.addData("arm theta (deg)", Util.deg(this.#armTheta));
@@ -529,7 +536,13 @@ export default class Robot extends PhysicsEntity {
         Telemetry.addData("y", this.#y);
         Telemetry.addData("theta", this.#theta);
         Telemetry.addData("deltaTheta", deltaTheta);
-        Telemetry.addData("height", this.#sensor.getDistance(DistanceUnit.INCH) - this.heightSensorOffset);
+        Telemetry.addData("sensor reading", this.#sensor.getDistance(DistanceUnit.INCH));
+        Telemetry.addData("deltaActuate", deltaActuate);
+
+        Telemetry.addLine('\n----------- Velocity ----------\n');
+        Telemetry.addData("vx", this.getLinearVel().x);
+        Telemetry.addData("vy", this.getLinearVel().y);
+        Telemetry.addData("angularVel", this.getAngularVel());
     }
 
     /**
@@ -634,13 +647,15 @@ export default class Robot extends PhysicsEntity {
         return this.#sensor;
     }
 
-    actuate(deltaTime) {
-        this.handLift.setPower(1.0);
+    actuate(deltaTime, power = this.handLift.getPower()) {
+        const previousPower = this.handLift.getPower();
+        this.handLift.setPower(power);
         this.#deltaHandPos = this.handLift._update(deltaTime);
-        this.handLift.setPower(0);
+        this.handLift.setPower(previousPower);
+        return this.#deltaHandPos;
     }
 
-    powerLift(power, dt) {
+    powerLift(dt, power = this.linearSlideLift.getPower()) {
         const previousPower = this.linearSlideLift.getPower();
         const oldPos = this.linearSlideLift.getCurrentPosition();
         this.linearSlideLift.setPower(power);
@@ -651,10 +666,10 @@ export default class Robot extends PhysicsEntity {
         this.linearSlideLift
             ._setCurrentPosition(Util.clamp(0, this.linearSlideLift.getCurrentPosition(), 4000));
 
-        this.#deltaLiftPos = this.linearSlideLift.getCurrentPosition() - oldPos;
+        return this.#deltaLiftPos = this.linearSlideLift.getCurrentPosition() - oldPos;
     }
 
-    powerPivot(power, dt) {
+    powerPivot(dt, power = this.linearSlidePivot.getPower()) {
         const previousPower = this.linearSlidePivot.getPower();
         const oldPos = this.linearSlidePivot.getCurrentPosition();
         this.linearSlidePivot.setPower(power);
@@ -666,7 +681,7 @@ export default class Robot extends PhysicsEntity {
             ._setCurrentPosition(Util.clamp(0, this.linearSlidePivot.getCurrentPosition(), 6000));
 
         // Setting the delta pos for accurate collision detection
-        this.#deltaPivotPos = this.linearSlidePivot.getCurrentPosition() - oldPos;
+        return this.#deltaPivotPos = this.linearSlidePivot.getCurrentPosition() - oldPos;
     }
 
     /**
@@ -679,6 +694,10 @@ export default class Robot extends PhysicsEntity {
      */
     #liftTicksToHookDistInches(ticks) {
         return this.#liftTicksToInches(ticks) + this.initialArmLength;
+    }
+    
+    #hookDistInchesToLiftTicks(inches) {
+        return this.#inchesToLiftTicks(inches - this.initialArmLength);
     }
     
     /**
