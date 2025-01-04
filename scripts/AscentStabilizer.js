@@ -9,9 +9,7 @@ export default class AscentStabilizer {
 
     // Mathematical constants 
     h = 36;  // How far the second rung is off the ground.
-    hc = 18; // The height of the center of rotation when the robot tilts
-    xc = 1;  // How far the pivot's from the rungs with no tilts
-    x = this.xc;   // How far the pivot's from the rungs
+    x = 13;   // How far the pivot's from the rungs
     r = 1.25; // Radius of the hook.
 
     // Other mathematical variables
@@ -194,9 +192,8 @@ export default class AscentStabilizer {
      * 
      * @param t Timestamp the function was called at. In the time units 
      *     given in the constructor.
-     * @param pitch The angle facing downward of the robot in radians
      */
-    update(t, pitch = 0) {
+    update(t) {
         // Setting the last properties for derivatives
         if(this.firstUpdate) {
             // Apply no average so that placeholder values aren't factored in
@@ -205,15 +202,11 @@ export default class AscentStabilizer {
             this.firstUpdate = false;
         }
 
-        this.lastY = /* 0.2 * this.lastY + 0.8 *  */this.currentY;
-        this.lastT = /* 0.2 * this.lastT + 0.8 *  */this.currentT;
+        this.lastY = this.currentY;
+        this.lastT = this.currentT;
 
         // Setting the current properties
         this.currentY = this.y(t);
         this.currentT = t;
-        // this.pitch = pitch;
-
-        // console.log("UNROTATED: " + this.#getUnrotatedY(this.lastY, pitch));
-        // this.x = this.xc * Math.cos(pitch) - (this.#getUnrotatedY(this.lastY, pitch) - this.hc) * Math.sin(pitch);
     }
 }

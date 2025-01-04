@@ -18,8 +18,8 @@ export default class IntoTheDeepTeleop {
     linearSlidePivot;
     linearActuator;
 
-    heightGetter;
     bildaImu;
+    heightGetter;
     initialArmLength;
     ascentStabilizer;
 
@@ -29,6 +29,7 @@ export default class IntoTheDeepTeleop {
         static MANUAL_OVERRIDE = Symbol("MANUAL_OVERRIDE");
         static STABILIZE_ROBOT = Symbol("STABILIZE_ROBOT");
         static HANG_TIME_AUTOMATIC = Symbol("AUTOMATIC_HANG_TIME");
+        static HANG_TIME_AUTOMATIC_ALTERNATE = Symbol("AUTOMATIC_HANG_TIME_ALTERNATE");
         static EXIT_HANG_TIME = Symbol("EXIT_HANG_TIME");
     }
     
@@ -59,18 +60,34 @@ export default class IntoTheDeepTeleop {
         // this.heightGetter = { getDistance: t => this.heightSensor.getDistance() };
 
         // this.bildaImu = new (class GoBildaPinpointDriver)();
+        // DEV START: Placeholder imu/pitch getter 
+        // FIXME: This is used only because the angles are assumed to be small enough. PLEASE FIX WITH SOMETHING!
+        this.bildaImu = new (class PlaceholderIMU {
+            constructor() { /* Nothing here to do... */ }
+
+            getPitch() {
+                return 0;
+            }
+        })();
+        // DEV END
 
         this.heightGetter = new (class HeightGetter {
             #sensor;
+            #imu;
 
-            constructor(sensor) {
+            constructor(sensor, imu) {
                 this.#sensor = sensor;
+                this.#imu = imu;
             }
 
             getDistance(unit) {
-                return this.#sensor.getDistance(unit);
+                const theta = this.#imu.getPitch();
+                const rotSensorYOffset = 
+                      Math.sin(-theta) * robot.heightSensorOffsetX 
+                    + Math.cos(-theta) * robot.heightSensorOffsetY;
+                return this.#sensor.getDistance(unit) * Math.cos(theta) - rotSensorYOffset;
             }
-        })(this.heightSensor);
+        })(this.heightSensor, this.bildaImu);
 
         // Creating the stabilizer
         this.ascentStabilizer = AscentStabilizer.create(this.heightGetter, timestamp);
@@ -167,7 +184,7 @@ export default class IntoTheDeepTeleop {
         let linearSlideState = this.linearSlideState;
         const LinearSlideStates = this.LinearSlideStates;
         
-        const heightSensor = this.heightSensor;
+        // const heightSensor = this.heightSensor;
         const linearSlidePivot = this.linearSlidePivot;
         const linearSlideLift = this.linearSlideLift;
         const linearActuator = this.linearActuator;
@@ -311,9 +328,9 @@ export default class IntoTheDeepTeleop {
                 Telemetry.addData("current length", currentArmLength);
 
                 // EXIT
-                if((isCorrectLength && isCorrectTheta) || (gamepad2.dpad_right && !checkGTwoDRIGHT)) {
-                    if(gamepad2.dpad_right) {
-                        checkGTwoDRIGHT = true;
+                if((isCorrectLength && isCorrectTheta) || (gamepad2.dpad_left && !checkGTwoDLEFT)) {
+                    if(gamepad2.dpad_left) {
+                        checkGTwoDLEFT = true;
                     }
 
                     linearSlideLift.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
@@ -325,74 +342,96 @@ export default class IntoTheDeepTeleop {
                 }
 
                 // ABORT
-                if(gamepad2.dpad_left && !checkGTwoDLEFT) {
+                if(gamepad2.dpad_right && !checkGTwoDRIGHT) {
                     linearSlideLift.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
                     linearSlideLift.setPower(0);
                     linearSlidePivot.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
                     linearSlidePivot.setPower(0);
-                    checkGTwoDLEFT = true;
+                    checkGTwoDRIGHT = true;
                     isStateInitialized = false;
                     linearSlideState = LinearSlideStates.EXIT_HANG_TIME;
                 }
                 break;
             }
 
-            // case LinearSlideStates.HANG_TIME_AUTOMATIC: {
-            //     const t = this.stabilizerTimer.seconds();
-                
-            //     ascentStabilizer.update(t);
-
-            //     const desiredArmTheta = ascentStabilizer.theta(t);
-            //     const desiredArmLength = ascentStabilizer.l(t) - ascentStabilizer.r * DRAW_BACK;
-            //     const thetaPrime = ascentStabilizer.thetaPrime(t);
-            //     const lengthPrime = ascentStabilizer.lPrime(t);
-            //     const currentArmTheta = this.pivotTicksToRadians(linearSlidePivot.getCurrentPosition());
-            //     const currentArmLength = this.liftTicksToHookDistInches(linearSlideLift.getCurrentPosition());
-
-            //     // Raise the robot vertically to 3rd level!
-            //     if(!isStateInitialized) {
-            //         this.stabilizerTimer.reset();
-            //         ascentStabilizer.firstUpdate = true;
-            //         ascentStabilizer.update(t);
-            //         isStateInitialized = true;
-            //     }
-
-            //     linearSlideLift.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-            //     linearSlideLift.setVelocity(this.inchesToLiftTicks(lengthPrime));
-            //     linearSlidePivot.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-            //     linearSlidePivot.setVelocity(this.radiansToPivotTicks(thetaPrime));
-
-            //     Telemetry.addLine('\n--- Automatic Hang Time ---\n');
-            //     Telemetry.addData("t", t);
-            //     Telemetry.addData("y", ascentStabilizer.y(t));
-            //     Telemetry.addData("deltaY", ascentStabilizer.deltaY(t));
-            //     Telemetry.addData("desiredArmTheta", desiredArmTheta);
-            //     Telemetry.addData("desiredArmLength", desiredArmLength);
-                
-            //     Telemetry.addLine("");
-            //     Telemetry.addData("deltaY", ascentStabilizer.deltaY(t));
-            //     Telemetry.addData("yPrime", ascentStabilizer.yPrime(t));
-            //     Telemetry.addData("lengthPrime", lengthPrime);
-            //     Telemetry.addData("thetaPrime", thetaPrime);
-
-            //     Telemetry.addLine("");
-            //     Telemetry.addData("current armTheta", currentArmTheta);
-            //     Telemetry.addData("current length", currentArmLength);
-
-            //     // EXIT
-            //     if(gamepad2.dpad_left && !checkGTwoDLEFT) {
-            //         checkGTwoDLEFT = true;
-            //         linearSlideLift.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-            //         linearSlideLift.setPower(0);
-            //         linearSlidePivot.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-            //         linearSlidePivot.setPower(0);
-            //         isStateInitialized = false;
-            //         linearSlideState = LinearSlideStates.EXIT_HANG_TIME;
-            //     }
-            //     break;
-            // }
-            
             case LinearSlideStates.HANG_TIME_AUTOMATIC: {
+                // Vertically raising the robot for the first portion of a 3rd level ascent
+                //
+                // This sets the velocities of the motors based on first derivatives; this may, 
+                // therefore, become misaligned. To fix in that scenario, just hit the right dpad
+                // to enter re-stabilization
+                const t = this.stabilizerTimer.seconds();
+                
+                ascentStabilizer.update(t);
+
+                const desiredArmTheta = ascentStabilizer.theta(t);
+                const desiredArmLength = ascentStabilizer.l(t) - ascentStabilizer.r * DRAW_BACK;
+                const thetaPrime = ascentStabilizer.thetaPrime(t);
+                const lengthPrime = ascentStabilizer.lPrime(t);
+                const currentArmTheta = this.pivotTicksToRadians(linearSlidePivot.getCurrentPosition());
+                const currentArmLength = this.liftTicksToHookDistInches(linearSlideLift.getCurrentPosition());
+
+                // Raise the robot vertically to 3rd level!
+                if(!isStateInitialized) {
+                    this.stabilizerTimer.reset();
+                    ascentStabilizer.firstUpdate = true;
+                    ascentStabilizer.update(t);
+                    isStateInitialized = true;
+                }
+
+                linearSlideLift.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+                linearSlideLift.setVelocity(this.inchesToLiftTicks(lengthPrime));
+                linearSlidePivot.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+                linearSlidePivot.setVelocity(this.radiansToPivotTicks(thetaPrime));
+
+                Telemetry.addLine('\n--- Automatic Hang Time ---\n');
+                Telemetry.addData("t", t);
+                Telemetry.addData("y", ascentStabilizer.y(t));
+                Telemetry.addData("deltaY", ascentStabilizer.deltaY(t));
+                Telemetry.addData("desiredArmTheta", desiredArmTheta);
+                Telemetry.addData("desiredArmLength", desiredArmLength);
+                
+                Telemetry.addLine("");
+                Telemetry.addData("deltaY", ascentStabilizer.deltaY(t));
+                Telemetry.addData("yPrime", ascentStabilizer.yPrime(t));
+                Telemetry.addData("lengthPrime", lengthPrime);
+                Telemetry.addData("thetaPrime", thetaPrime);
+
+                Telemetry.addLine("");
+                Telemetry.addData("current armTheta", currentArmTheta);
+                Telemetry.addData("current length", currentArmLength);
+
+                // EXIT
+                if(gamepad2.dpad_left && !checkGTwoDLEFT) {
+                    checkGTwoDLEFT = true;
+                    linearSlideLift.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+                    linearSlideLift.setPower(0);
+                    linearSlidePivot.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+                    linearSlidePivot.setPower(0);
+                    isStateInitialized = false;
+                    linearSlideState = LinearSlideStates.EXIT_HANG_TIME;
+                }
+
+                if(gamepad2.dpad_right && !checkGTwoDRIGHT) {
+                    checkGTwoDRIGHT = true;
+                    linearSlideLift.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+                    linearSlideLift.setPower(0);
+                    linearSlidePivot.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+                    linearSlidePivot.setPower(0);
+                    isStateInitialized = false;
+                    linearSlideState = LinearSlideStates.STABILIZE_ROBOT;
+                }
+
+                break;
+            }
+            
+            case LinearSlideStates.HANG_TIME_AUTOMATIC_ALTERNATE: {
+                // Vertically raising the robot for the first portion of a 3rd level ascent
+                //
+                // This uses RUN_TO_POSITION to maintain the position of the motors; this may,
+                // however, overpull the robot due to the velocities being not maintained. You 
+                // can attempt to restabilize the robot by hitting the right dpad button, the effect
+                // might be lackluster
                 const t = this.stabilizerTimer.seconds();
                 
                 ascentStabilizer.update(t);
@@ -407,10 +446,6 @@ export default class IntoTheDeepTeleop {
 
                 const desiredArmTheta = ascentStabilizer.theta(t);
                 const desiredArmLength = ascentStabilizer.l(t) - DRAW_BACK;
-                const thetaPrime = ascentStabilizer.thetaPrime(t);
-                const lengthPrime = ascentStabilizer.lPrime(t);
-                const currentArmTheta = this.pivotTicksToRadians(linearSlidePivot.getCurrentPosition());
-                const currentArmLength = this.liftTicksToHookDistInches(linearSlideLift.getCurrentPosition());
 
                 linearSlideLift.setTargetPosition(this.hookDistInchesToLiftTicks(desiredArmLength));
                 linearSlideLift.setMode(DcMotorEx.RunMode.RUN_TO_POSITION);
@@ -423,7 +458,7 @@ export default class IntoTheDeepTeleop {
                     1.0
                 );
 
-                Telemetry.addLine('\n--- Automatic Hang Time ---\n');
+                Telemetry.addLine('\n--- Automatic Hang Time (Alternate ~ Position) ---\n');
                 Telemetry.addData("t", t);
                 Telemetry.addData("y", ascentStabilizer.y(t));
                 Telemetry.addData("deltaY", ascentStabilizer.deltaY(t));
@@ -441,6 +476,16 @@ export default class IntoTheDeepTeleop {
                     linearSlidePivot.setPower(0);
                     isStateInitialized = false;
                     linearSlideState = LinearSlideStates.EXIT_HANG_TIME;
+                }
+
+                if(gamepad2.dpad_right && !checkGTwoDRIGHT) {
+                    checkGTwoDRIGHT = true;
+                    linearSlideLift.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+                    linearSlideLift.setPower(0);
+                    linearSlidePivot.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+                    linearSlidePivot.setPower(0);
+                    isStateInitialized = false;
+                    linearSlideState = LinearSlideStates.STABILIZE_ROBOT;
                 }
                 break;
             }

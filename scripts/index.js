@@ -129,12 +129,12 @@ let lastSecond = 0;
 let frames = 0;
 
 function loop(timestamp) {
-    const FRAME = 1/60;
+    const FRAME = 1/45
     const deltaTime = Math.min(Util.seconds(timestamp - startTime) - lastTime, FRAME);
     const elapsed = lastTime + deltaTime;
     // const FRAME = 1/60;
     // const elapsed = Util.seconds(timestamp - startTime);
-    // const deltaTime = ◘FRAME;
+    // const deltaTime = FRAME;
     // const elapsed = lastTime + FRAME;
     // const deltaTime = elapsed - lastTime;
     Telemetry.addData("<deltaTime>", deltaTime);
